@@ -16,9 +16,7 @@
         <section id="resumo-geral">
             <h2>📊 Resumo Total</h2>
             <div id="dados-resumo">
-                <p><strong>Valor Total em Stake (EUR):</strong> <span id="total-stake-eur">0.00</span> €</p>
-                <p><strong>Retorno Anual Estimado (APR Médio):</strong> <span id="apr-medio">0.00</span> %</p>
-                <p><strong>Ganhos Acumulados Estimados (EUR):</strong> <span id="total-ganhos-eur">0.00</span> €</p>
+                <p>Carregando dados...</p>
             </div>
         </section>
 
@@ -28,16 +26,16 @@
                 <thead>
                     <tr>
                         <th>Plataforma</th>
-                        <th>Token Staked (Original)</th>
+                        <th>Token Staked (Qtde.)</th>
                         <th>Qtde. Staked</th>
-                        <th>Valor (EUR)</th>
+                        <th>Valor Atual (EUR)</th>
                         <th>Token LSD/Colateral</th>
-                        <th>Taxa Paga (%)</th>
+                        <th>Taxa Paga (EUR)</th>
                         <th>% Ganho (APR/APY)</th>
-                        <th>Tipo de Retorno</th>
+                        <th>Tipo</th>
                         <th>Bloqueio/Retirada</th>
                         <th>Carteira</th>
-                        <th>Observações Adicionais</th>
+                        <th>Ações</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -46,15 +44,69 @@
         </section>
 
         <section id="adicionar-stake">
-            <h2>➕ Adicionar Novo Stake</h2>
+            <h2>➕ Adicionar Novo Stake/LP</h2>
             <form id="stake-form">
-                <button type="submit">Adicionar ao Portfólio</button>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="plataforma">Plataforma (Lido, Aave, Uniswap):</label>
+                        <input type="text" id="plataforma" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="tokenStaked">Token Staked (Ex: ETH, USDC):</label>
+                        <input type="text" id="tokenStaked" required>
+                    </div>
+                    <div class="form-group api-id-group">
+                        <label for="apiId">CoinGecko ID do Token (Ex: ethereum, usd-coin):</label>
+                        <input type="text" id="apiId" required>
+                        <small>⚠️ **Obrigatório** para cotação em tempo real!</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="qtdeStaked">Quantidade Staked:</label>
+                        <input type="number" id="qtdeStaked" step="any" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="tokenLSD">Token LSD/Colateral (Ex: stETH, aUSDC):</label>
+                        <input type="text" id="tokenLSD">
+                    </div>
+                    <div class="form-group">
+                        <label for="taxaPaga">Taxa Paga (Gás/Swap - em EUR):</label>
+                        <input type="number" id="taxaPaga" step="any" value="0.00">
+                    </div>
+                    <div class="form-group">
+                        <label for="porcentagemGanho">% Ganho (APR/APY):</label>
+                        <input type="number" id="porcentagemGanho" step="any" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="tipoRetorno">Tipo de Retorno:</label>
+                        <select id="tipoRetorno" required>
+                            <option value="APR">APR (Juros Simples)</option>
+                            <option value="APY">APY (Juros Compostos)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="bloqueio">Bloqueio / Tempo de Retirada:</label>
+                        <input type="text" id="bloqueio" placeholder="Ex: 7 dias de desbloqueio, sem lock">
+                    </div>
+                    <div class="form-group">
+                        <label for="carteira">Carteira Usada (MetaMask, Trust, Phantom):</label>
+                        <input type="text" id="carteira" required>
+                    </div>
+                    <div class="form-group observacoes-group">
+                        <label for="observacoes">Observações Adicionais:</label>
+                        <textarea id="observacoes"></textarea>
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" id="add-stake-btn">Adicionar Novo Stake</button>
+                    <button type="button" id="limpar-data-btn" class="limpar-btn">Limpar Todos os Dados Salvos</button>
+                </div>
             </form>
         </section>
     </main>
 
     <footer>
-        <p>Dados inseridos manualmente e estimativas. Não é um consultoria financeira. Feito com 💖 e um pouco de ☕.</p>
+        <p>Dados persistidos via LocalStorage e cotações da CoinGecko. Não é um consultoria financeira.</p>
         <p><a href="https://github.com/seuusuario/seurepositorio" target="_blank">Ver no GitHub</a></p>
     </footer>
 
