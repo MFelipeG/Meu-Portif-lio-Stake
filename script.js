@@ -1,149 +1,220 @@
 // =================================================================
-// 1. DADOS DO PORTFÓLIO (Você deve atualizar este array manualmente)
-// Importante: use o 'id' exato da CoinGecko (ex: 'ethereum', 'usd-coin')
-// Adicione um campo 'apiId' para mapear o token para a API.
+// 1. VARIÁVEIS GLOBAIS
 // =================================================================
 
-const portfolioData = [
-    {
-        plataforma: 'Lido',
-        tokenStaked: 'ETH',
-        apiId: 'ethereum', // ID da CoinGecko
-        qtdeStaked: 1.5,
-        tokenLSD: 'stETH',
-        taxaPaga: 0.05, // Em %
-        porcentagemGanho: 3.5, // APR/APY
-        tipoRetorno: 'APY',
-        bloqueio: 'Não',
-        retirada: '7-14 dias',
-        carteira: 'MetaMask',
-        observacoes: 'Liquid Staking'
-    },
-    {
-        plataforma: 'Aave V3',
-        tokenStaked: 'USDC',
-        apiId: 'usd-coin', // ID da CoinGecko
-        qtdeStaked: 1000.00,
-        tokenLSD: 'aUSDC',
-        taxaPaga: 0.10,
-        porcentagemGanho: 2.15,
-        tipoRetorno: 'APR',
-        bloqueio: 'Não',
-        retirada: 'Imediata',
-        carteira: 'Trust Wallet',
-        observacoes: 'Empréstimo'
-    }
-    // Adicione mais objetos. Certifique-se de incluir 'apiId'.
-];
-
-// Objeto para armazenar os preços dinamicamente
+let portfolioData = []; // Inicialmente vazio, será preenchido pelo LocalStorage
 let cryptoPrices = {};
-const fiatCurrency = 'eur'; // Usaremos sempre EUR, conforme solicitado
+const fiatCurrency = 'eur'; // Moeda de referência
+const localStorageKey = 'defiPortfolioData';
 
 // =================================================================
-// 2. FUNÇÃO DE BUSCA DE PREÇOS (API CoinGecko)
+// 2. GERENCIAMENTO DE DADOS (LocalStorage)
+// =================================================================
+
+function loadData() {
+    const data = localStorage.getItem(localStorageKey);
+    try {
+        portfolioData = data ? JSON.parse(data) : [];
+    } catch (e) {
+        console.error("Erro ao carregar dados do LocalStorage:", e);
+        portfolioData = [];
+    }
+}
+
+function saveData() {
+    localStorage.setItem(localStorageKey, JSON.stringify(portfolioData));
+}
+
+function clearData() {
+    if (confirm("ATENÇÃO: Você tem certeza que deseja APAGAR TODOS os dados do seu portfólio? Essa ação não pode ser desfeita.")) {
+        localStorage.removeItem(localStorageKey);
+        portfolioData = [];
+        
+        // Recarrega a visualização (incluindo o resumo)
+        popularTabela();
+        calcularEExibirResumo();
+        alert("Todos os dados foram limpos! Recarregue a página se houver problemas.");
+    }
+}
+
+// =================================================================
+// 3. FUNÇÃO DE BUSCA DE PREÇOS (API CoinGecko)
 // =================================================================
 
 async function fetchPrices() {
-    // 1. Coleta todos os IDs únicos necessários
-    const coinIds = [...new Set(portfolioData.map(item => item.apiId))].join(',');
+    if (portfolioData.length === 0) return;
+
+    // 1. Coleta todos os IDs únicos (e válidos) necessários
+    const uniqueApiIds = [...new Set(portfolioData.map(item => item.apiId).filter(id => id))];
+    if (uniqueApiIds.length === 0) return;
     
-    // Endpoint da CoinGecko para cotações simples
+    const coinIds = uniqueApiIds.join(',');
+    
+    // Endpoint da CoinGecko (versão gratuita)
     const apiUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${coinIds}&vs_currencies=${fiatCurrency}`;
 
     try {
         const response = await fetch(apiUrl);
         if (!response.ok) {
-            throw new Error(`Erro de rede ou limite de API excedido: ${response.status}`);
+            throw new Error(`Erro de rede ou limite de API excedido: ${response.status} ${response.statusText}`);
         }
         const data = await response.json();
         
-        // Formata os dados no objeto global
+        // Formata os dados no objeto global cryptoPrices
         for (const [id, prices] of Object.entries(data)) {
             cryptoPrices[id] = prices[fiatCurrency];
         }
-
         console.log("Cotações atualizadas:", cryptoPrices);
-        return true;
     } catch (error) {
-        console.error("Falha ao buscar cotações da CoinGecko:", error);
-        // Em caso de falha, os cálculos serão feitos com um preço default (0), ou com valores fixos se existirem.
-        return false;
+        console.error("Falha ao buscar cotações da CoinGecko. Usando 0 para cálculo.", error);
     }
 }
 
-
 // =================================================================
-// 3. FUNÇÕES DE CÁLCULO E EXIBIÇÃO
-// Estas funções AGORA utilizam o objeto 'cryptoPrices'
+// 4. FUNÇÕES DE CÁLCULO E EXIBIÇÃO
 // =================================================================
 
 function calcularEExibirResumo() {
     let totalStakeEUR = 0;
-    let totalAPR = 0;
-    let totalItens = 0;
+    let totalTaxaPaga = 0;
     let totalGanhosEstimadosEUR = 0;
+    let aprTotal = 0;
+    let totalItens = 0;
 
     portfolioData.forEach(item => {
-        const precoAtualEUR = cryptoPrices[item.apiId] || 0; // Pega o preço atual
+        const precoAtualEUR = cryptoPrices[item.apiId] || 0;
         const valorAtualEUR = item.qtdeStaked * precoAtualEUR;
         
-        // Soma o valor total em EUR (usando o preço atual)
+        // Somatória
         totalStakeEUR += valorAtualEUR;
-        totalAPR += item.porcentagemGanho;
+        totalTaxaPaga += parseFloat(item.taxaPaga) || 0; // Garante que a taxa é um número
+        aprTotal += parseFloat(item.porcentagemGanho) || 0;
         totalItens++;
 
-        // Estima o ganho anual simples: Valor Atual * (APR/100)
-        const ganhoAnualEstimado = valorAtualEUR * (item.porcentagemGanho / 100);
+        // Estimativa de Ganho (simplificada, anual)
+        const ganhoAnualEstimado = valorAtualEUR * ((parseFloat(item.porcentagemGanho) || 0) / 100);
         totalGanhosEstimadosEUR += ganhoAnualEstimado;
     });
 
-    const aprMedio = totalItens > 0 ? totalAPR / totalItens : 0;
+    const aprMedio = totalItens > 0 ? aprTotal / totalItens : 0;
+    const valorLiquidoAtual = totalStakeEUR - totalTaxaPaga;
 
-    // Atualiza os elementos no HTML
-    document.getElementById('total-stake-eur').textContent = totalStakeEUR.toFixed(2);
-    document.getElementById('apr-medio').textContent = aprMedio.toFixed(2);
-    document.getElementById('total-ganhos-eur').textContent = totalGanhosEstimadosEUR.toFixed(2);
-    
-    // Adiciona a nota de rodapé sobre a atualização (EXTRA!)
-    document.getElementById('dados-resumo').innerHTML += `<p class="atualizacao">Última atualização de preço: ${new Date().toLocaleTimeString()} (Fonte: CoinGecko)</p>`;
+    const resumoDiv = document.getElementById('dados-resumo');
+    resumoDiv.innerHTML = `
+        <p><strong>Valor Total em Stake:</strong> <span>${totalStakeEUR.toFixed(2)} €</span></p>
+        <p><strong>Taxas de Gás Pagas:</strong> <span class="taxas">${totalTaxaPaga.toFixed(2)} €</span></p>
+        <p><strong>Valor Líquido Atual:</strong> <strong>${valorLiquidoAtual.toFixed(2)} €</strong></p>
+        <p><strong>Retorno Médio (APR/APY):</strong> <span>${aprMedio.toFixed(2)} %</span></p>
+        <p><strong>Ganhos Anuais Estimados:</strong> <span>${totalGanhosEstimadosEUR.toFixed(2)} €</span></p>
+        <p class="atualizacao">Última atualização de preço: ${new Date().toLocaleTimeString()} (Fonte: CoinGecko)</p>
+    `;
 }
 
 function popularTabela() {
     const tableBody = document.querySelector('#portfolio-table tbody');
     tableBody.innerHTML = ''; 
 
-    portfolioData.forEach(item => {
+    if (portfolioData.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="11" style="text-align: center;">Seu portfólio está vazio. Adicione um novo stake acima!</td></tr>';
+        return;
+    }
+
+    portfolioData.forEach((item, index) => {
         const precoAtualEUR = cryptoPrices[item.apiId] || 0;
         const valorAtualEUR = item.qtdeStaked * precoAtualEUR;
 
         const row = tableBody.insertRow();
         
-        // Células na ordem da tabela
+        const acoesCell = `<button onclick="removerStake(${index})" class="delete-btn">Excluir</button>`;
+
         row.insertCell().textContent = item.plataforma;
         row.insertCell().textContent = `${item.qtdeStaked.toFixed(4)} ${item.tokenStaked}`;
         row.insertCell().textContent = item.qtdeStaked.toFixed(4);
-        // Valor agora é dinâmico!
         row.insertCell().innerHTML = `<strong>${valorAtualEUR.toFixed(2)} €</strong>`; 
         row.insertCell().textContent = item.tokenLSD || 'N/A';
-        row.insertCell().textContent = `${item.taxaPaga.toFixed(2)}%`;
-        row.insertCell().textContent = `${item.porcentagemGanho.toFixed(2)}%`;
+        row.insertCell().textContent = `${parseFloat(item.taxaPaga).toFixed(2)} €`;
+        row.insertCell().textContent = `${parseFloat(item.porcentagemGanho).toFixed(2)}%`;
         row.insertCell().textContent = item.tipoRetorno;
-        row.insertCell().textContent = item.bloqueio + (item.retirada ? ` (${item.retirada})` : '');
+        row.insertCell().textContent = item.bloqueio;
         row.insertCell().textContent = item.carteira;
-        row.insertCell().textContent = item.observacoes;
+        row.insertCell().innerHTML = acoesCell; 
     });
 }
 
+// Função para excluir um item
+window.removerStake = async function(index) {
+    // Confirmação simples
+    if (!confirm(`Tem certeza que deseja remover o stake de ${portfolioData[index].tokenStaked} na plataforma ${portfolioData[index].plataforma}?`)) {
+        return;
+    }
+
+    portfolioData.splice(index, 1);
+    saveData();
+    
+    // Reexecuta o processo após a exclusão
+    await initPortfolio(); 
+}
+
+
 // =================================================================
-// 4. INICIALIZAÇÃO
+// 5. MANUSEIO DO FORMULÁRIO
 // =================================================================
 
-document.addEventListener('DOMContentLoaded', async () => {
-    // 1. Primeiro, busca os preços da API
-    await fetchPrices();
+function handleFormSubmit(event) {
+    event.preventDefault();
+
+    const newStake = {
+        plataforma: document.getElementById('plataforma').value,
+        tokenStaked: document.getElementById('tokenStaked').value.toUpperCase(),
+        apiId: document.getElementById('apiId').value.toLowerCase(),
+        qtdeStaked: parseFloat(document.getElementById('qtdeStaked').value),
+        tokenLSD: document.getElementById('tokenLSD').value,
+        taxaPaga: parseFloat(document.getElementById('taxaPaga').value) || 0,
+        porcentagemGanho: parseFloat(document.getElementById('porcentagemGanho').value),
+        tipoRetorno: document.getElementById('tipoRetorno').value,
+        bloqueio: document.getElementById('bloqueio').value,
+        carteira: document.getElementById('carteira').value,
+        observacoes: document.getElementById('observacoes').value,
+        id: Date.now() 
+    };
+
+    // Validação básica
+    if (!newStake.apiId || newStake.qtdeStaked <= 0 || newStake.porcentagemGanho < 0) {
+        alert("Por favor, preencha todos os campos obrigatórios e verifique se a quantidade e o APR/APY são números válidos.");
+        return;
+    }
+
+    portfolioData.push(newStake);
+    saveData();
     
-    // 2. Depois, preenche a tabela e calcula o resumo com os preços atuais
+    // Limpa o formulário e re-renderiza
+    document.getElementById('stake-form').reset();
+    initPortfolio(); // Reinicia o portfólio para atualizar preços e a tabela
+}
+
+// =================================================================
+// 6. INICIALIZAÇÃO E LISTENERS
+// =================================================================
+
+async function initPortfolio() {
+    loadData();
+    await fetchPrices(); // Busca os preços antes de renderizar
     popularTabela();
     calcularEExibirResumo();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Adiciona os Listeners
+    const form = document.getElementById('stake-form');
+    if (form) {
+        form.addEventListener('submit', handleFormSubmit);
+    }
+    
+    const clearBtn = document.getElementById('limpar-data-btn');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', clearData);
+    }
+
+    // Inicia o portfólio ao carregar a página
+    initPortfolio();
 });
